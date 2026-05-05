@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Aventura na Montanha Nevada</title>
+<style>
+  body { margin: 0; overflow: hidden; background: black; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ===== ESTADO DO JOGO =====
+let gameState = "menu";
+let score = 0;
+
+// ===== IMAGENS =====
+const bg = new Image();
+bg.src = "montanha.png";
+
+const playerImg = new Image();
+playerImg.src = "personagem.png";
+
+// ===== PLAYER =====
+const player = {
+  x: 100,
+  y: 300,
+  w: 60,
+  h: 90,
+  vx: 0,
+  vy: 0,
+  speed: 5,
+  jump: -15,
+  grounded: false
+};
+
+// ===== PLATAFORMAS =====
+const platforms = [
+  {x:0, y:500, w:2000, h:50},
+  {x:400, y:400, w:200, h:20},
+  {x:700, y:350, w:200, h:20}
+];
+
+// ===== INIMIGOS =====
+let enemies = [
+  {x:600, y:460, w:50, h:50, dir:1}
+];
+
+// ===== ITENS =====
+let coins = [
+  {x:450, y:350, r:10},
+  {x:750, y:300, r:10}
+];
+
+// ===== NEVE =====
+let snow = Array.from({length:100}, () => ({
+  x: Math.random()*canvas.width,
+  y: Math.random()*canvas.height,
+  speed: Math.random()*2+1
+}));
+
+// ===== CONTROLES =====
+let keys = {};
+document.addEventListener("keydown", e => {
+  keys[e.key] = true;
+
+  if (gameState === "menu") gameState = "playing";
+  if (gameState === "gameover") resetGame();
+});
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+// ===== FUNÇÕES =====
+function resetGame(){
+  player.x = 100;
+  player.y = 300;
+  score = 0;
+  gameState = "playing";
+}
+
+// GRAVIDADE
+function physics(){
+  player.vy += 0.8;
+  player.y += player.vy;
+  player.x += player.vx;
+
+  player.grounded = false;
+
+  platforms.forEach(p => {
+    if(player.x < p.x + p.w &&
+       player.x + player.w > p.x &&
+       player.y < p.y + p.h &&
+       player.y + player.h > p.y){
+
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.grounded = true;
+    }
+  });
+
+  if(player.y > canvas.height){
+    gameState = "gameover";
+  }
+}
+
+// CONTROLE
+function control(){
+  player.vx = 0;
+
+  if(keys["ArrowRight"]) player.vx = player.speed;
+  if(keys["ArrowLeft"]) player.vx = -player.speed;
+
+  if(keys[" "] && player.grounded){
+    player.vy = player.jump;
+  }
+}
+
+// INIMIGOS
+function updateEnemies(){
+  enemies.forEach(e=>{
+    e.x += e.dir * 2;
+
+    if(e.x < 500 || e.x > 800) e.dir *= -1;
+
+    // colisão
+    if(player.x < e.x + e.w &&
+       player.x + player.w > e.x &&
+       player.y < e.y + e.h &&
+       player.y + player.h > e.y){
+         gameState = "gameover";
+    }
+  });
+}
+
+// COINS
+function updateCoins(){
+  coins = coins.filter(c=>{
+    const dx = player.x - c.x;
+    const dy = player.y - c.y;
+    if(Math.sqrt(dx*dx + dy*dy) < 30){
+      score++;
+      return false;
+    }
+    return true;
+  });
+}
+
+// NEVE
+function updateSnow(){
+  snow.forEach(s=>{
+    s.y += s.speed;
+    if(s.y > canvas.height){
+      s.y = 0;
+      s.x = Math.random()*canvas.width;
+    }
+  });
+}
+
+// ===== DESENHO =====
+function draw(){
+  ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+  // neve
+  ctx.fillStyle = "white";
+  snow.forEach(s=>{
+    ctx.fillRect(s.x, s.y, 2, 2);
+  });
+
+  // plataformas
+  ctx.fillStyle = "#ddd";
+  platforms.forEach(p=>{
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+  });
+
+  // moedas
+  ctx.fillStyle = "gold";
+  coins.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // inimigos
+  ctx.fillStyle = "red";
+  enemies.forEach(e=>{
+    ctx.fillRect(e.x, e.y, e.w, e.h);
+  });
+
+  // player
+  ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
+
+  // UI
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("Pontos: " + score, 20, 30);
+
+  if(gameState === "menu"){
+    ctx.font = "40px Arial";
+    ctx.fillText("Pressione qualquer tecla", 100, 200);
+  }
+
+  if(gameState === "gameover"){
+    ctx.font = "50px Arial";
+    ctx.fillText("GAME OVER", 100, 200);
+    ctx.font = "25px Arial";
+    ctx.fillText("Pressione tecla para reiniciar", 100, 260);
+  }
+}
+
+// ===== LOOP =====
+function loop(){
+  if(gameState === "playing"){
+    control();
+    physics();
+    updateEnemies();
+    updateCoins();
+    updateSnow();
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+bg.onload = loop;
+</script>
+
+</body>
+</html>
